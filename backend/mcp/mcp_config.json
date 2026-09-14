@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "agroxai-engine": {
+      "command": "python",
+      "args": ["backend/mcp/agroxai_mcp.py"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    "supabase-mcp": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server"],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
+      }
+    },
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["-y", "n8n-mcp"],
+      "env": {
+        "N8N_WEBHOOK_URL": "${N8N_WEBHOOK_URL}",
+        "N8N_API_KEY": "${N8N_API_KEY}"
+      }
+    }
+  }
+}

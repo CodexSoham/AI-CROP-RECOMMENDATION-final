@@ -1,0 +1,6 @@
+{
+  "name": "KshetraAI",
+  "description": "KshetraAI precision farming platform: smart crop monitoring, satellite parcel intelligence, interactive N-P-K soil health radars, and AI-driven agricultural recommendations.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
