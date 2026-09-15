@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Cpu, Award, BarChart3, Bot, FlaskConical, Thermometer, Droplets, CloudRain, Activity,
   Sliders, RotateCcw, Sparkles, Loader2, CheckCircle2, TrendingUp, Zap, Globe,
@@ -327,11 +327,11 @@ export function RedesignedDashboard() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
     toastTimer.current = setTimeout(() => setToast(null), 3200);
-  };
+  }, []);
 
   /* Satellite Field Health Monitoring State */
   const [activeTelemetryTab, setActiveTelemetryTab] = useState<'soil_climate' | 'satellite_health'>('soil_climate');
@@ -358,6 +358,7 @@ export function RedesignedDashboard() {
   /* ML recommendation inference & cloud database logging */
   const runPrediction = useCallback(async (f: ModelInputFeatures) => {
     setIsPredicting(true);
+    console.log('[AdaptiveCrop] runPrediction →', f);
     try {
       const res = await fetch('/api/v1/predict', {
         method: 'POST',
@@ -373,8 +374,10 @@ export function RedesignedDashboard() {
         }),
       });
 
+      console.log('[AdaptiveCrop] predict status:', res.status);
       if (res.ok) {
         const data = await res.json();
+        console.log('[AdaptiveCrop] top crops:', data.top_recommendations?.map((c: any) => c.crop));
         if (data.top_recommendations?.length) {
           setTopCrops(data.top_recommendations);
           setAnimKey(k => k + 1);
@@ -391,16 +394,19 @@ export function RedesignedDashboard() {
             (s ? `If seasonal rainfall fluctuates, ${cap(s.crop)} serves as an effective secondary rotation offering stable yield protection.` : '')
           );
         }
+      } else {
+        console.error('[AdaptiveCrop] predict API non-OK:', res.status);
       }
-    } catch {
-      // Graceful fallback
+    } catch (err) {
+      console.error('[AdaptiveCrop] runPrediction error:', err);
     } finally {
       setIsPredicting(false);
     }
   }, []);
 
-  /* Map click and location selection handler */
-  const handleLocationSelected = useCallback(async (lat: number, lon: number, name?: string) => {
+  /* Map click and location selection handler — plain async (no useCallback) to avoid stale closure */
+  const handleLocationSelected = async (lat: number, lon: number, name?: string) => {
+    console.log('[AdaptiveCrop] handleLocationSelected fired:', { lat, lon, name });
     setActiveCoords({ lat, lon, name: name || `Field Pin [${lat.toFixed(4)}°, ${lon.toFixed(4)}°]` });
     setIsIngesting(true);
 
@@ -422,29 +428,26 @@ export function RedesignedDashboard() {
           humidity: climate.humidity || 65,
           rainfall: preset.targetRainfall,
         };
+        console.log('[AdaptiveCrop] Preset features:', updated);
         setFeatures(updated);
         setSourceNotice(`National Reference Zone · ${preset.name} (${preset.dominantCrop}) · Live Telemetry`);
-        runPrediction(updated);
-      } catch {
+        await runPrediction(updated);
+      } catch (err) {
+        console.warn('[AdaptiveCrop] Preset climate fallback:', err);
         const fallback: ModelInputFeatures = {
-          N: preset.targetN,
-          P: preset.targetP,
-          K: preset.targetK,
-          ph: preset.targetPh,
-          temperature: 24.0,
-          humidity: 65,
-          rainfall: preset.targetRainfall,
+          N: preset.targetN, P: preset.targetP, K: preset.targetK, ph: preset.targetPh,
+          temperature: 24.0, humidity: 65, rainfall: preset.targetRainfall,
         };
         setFeatures(fallback);
         setSourceNotice(`National Reference Zone · ${preset.name} (${preset.dominantCrop})`);
-        runPrediction(fallback);
+        await runPrediction(fallback);
       } finally {
         setIsIngesting(false);
       }
       return;
     }
 
-    // Custom location coordinate ingestion
+    // Custom coordinate — try live soil/climate APIs, always fall back gracefully
     showToast('Ingesting digital soil chemistry & live climate telemetry…');
     try {
       const { soil, climate } = await fetchFullSoilAndClimate(lat, lon);
@@ -452,30 +455,35 @@ export function RedesignedDashboard() {
         N: soil.N, P: soil.P, K: soil.K, ph: soil.pH,
         temperature: climate.temperature, humidity: climate.humidity, rainfall: climate.rainfall,
       };
+      console.log('[AdaptiveCrop] Live soil+climate:', updated);
       setFeatures(updated);
       setSourceNotice(`Satellite Soil Survey (${soil.soilTexture}) · Live Microclimate (${climate.temperature}°C, ${climate.humidity}% RH)`);
-      runPrediction(updated);
-    } catch {
-      // Build a geo-aware regional fallback so recommendations still update
-      const isSouthPeninsula = lat < 20.0 && lon > 73.0 && lon < 82.0;
-      const isNorthIndia = lat > 25.0 && lon > 70.0 && lon < 90.0;
+      await runPrediction(updated);
+    } catch (err) {
+      // Geo-aware regional fallback — recommendations MUST always update
+      console.warn('[AdaptiveCrop] Live APIs unavailable, geo-aware fallback:', err);
+      const isSouth   = lat < 20.0 && lon > 73.0 && lon < 82.0;
+      const isNorth   = lat > 25.0 && lon > 70.0 && lon < 90.0;
+      const isNE      = lat > 22.0 && lon > 87.0;
+      const isCentral = lat > 18.0 && lat < 26.0 && lon > 74.0 && lon < 85.0;
       const fallback: ModelInputFeatures = {
-        N: isSouthPeninsula ? 80 : isNorthIndia ? 85 : 75,
-        P: isSouthPeninsula ? 48 : isNorthIndia ? 50 : 45,
-        K: isSouthPeninsula ? 42 : isNorthIndia ? 40 : 38,
-        ph: isSouthPeninsula ? 6.8 : isNorthIndia ? 6.5 : 6.6,
-        temperature: isSouthPeninsula ? 28.0 : isNorthIndia ? 24.0 : 26.0,
-        humidity: isSouthPeninsula ? 72 : isNorthIndia ? 60 : 68,
-        rainfall: isSouthPeninsula ? 185 : isNorthIndia ? 90 : 140,
+        N:           isSouth ? 80  : isNorth ? 120 : isNE ? 78  : isCentral ? 115 : 75,
+        P:           isSouth ? 48  : isNorth ? 50  : isNE ? 45  : isCentral ? 50  : 45,
+        K:           isSouth ? 42  : isNorth ? 40  : isNE ? 40  : isCentral ? 25  : 38,
+        ph:          isSouth ? 6.8 : isNorth ? 6.5 : isNE ? 6.7 : isCentral ? 7.2 : 6.6,
+        temperature: isSouth ? 28.0: isNorth ? 20.0: isNE ? 24.5: isCentral ? 28.5: 26.0,
+        humidity:    isSouth ? 72  : isNorth ? 55  : isNE ? 80  : isCentral ? 50  : 68,
+        rainfall:    isSouth ? 185 : isNorth ? 85  : isNE ? 190 : isCentral ? 95  : 140,
       };
+      console.log('[AdaptiveCrop] Geo fallback features:', fallback);
       setFeatures(fallback);
       setSourceNotice(`Regional Agroclimatic Baseline · [${lat.toFixed(4)}°, ${lon.toFixed(4)}°] (Fallback)`);
-      showToast('Engaging regional soil knowledgebase fallback.');
-      runPrediction(fallback);
+      showToast('Regional soil knowledgebase active — recommendations updated.');
+      await runPrediction(fallback);
     } finally {
       setIsIngesting(false);
     }
-  }, [runPrediction]);
+  };
 
   const handleReset = () => {
     setFeatures(DEFAULT_FEATURES);
