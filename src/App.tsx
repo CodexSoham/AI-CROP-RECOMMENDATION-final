@@ -282,9 +282,14 @@ export default function App() {
               </button>
             </div>
 
-            <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">
-              Precision Agro-Intelligence Engine Active • 98.86% Accuracy
-            </span>
+            <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 dark:text-stone-400 flex-wrap">
+              <span>98.86% Validated Accuracy</span>
+              <span className="hidden sm:inline">&bull;</span>
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Sentinel-2 Remote Sensing Ready
+              </span>
+            </div>
           </div>
 
           {/* Primary Redesigned Dashboard Component */}

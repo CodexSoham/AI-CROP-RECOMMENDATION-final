@@ -34,8 +34,13 @@ class Settings:
     SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL")
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     
-    # n8n Automation
-    N8N_WEBHOOK_URL: Optional[str] = os.getenv("N8N_WEBHOOK_URL")
-    N8N_API_KEY: Optional[str] = os.getenv("N8N_API_KEY")
+    # Sentinel Hub & Geospatial Remote Sensing APIs
+    SENTINEL_CLIENT_ID: Optional[str] = os.getenv("SENTINEL_CLIENT_ID")
+    SENTINEL_CLIENT_SECRET: Optional[str] = os.getenv("SENTINEL_CLIENT_SECRET")
+    SENTINEL_INSTANCE_ID: Optional[str] = os.getenv("SENTINEL_INSTANCE_ID")
+    SENTINEL_AUTH_URL: str = os.getenv("SENTINEL_AUTH_URL", "https://services.sentinel-hub.com/oauth/token")
+    SENTINEL_STATISTICAL_URL: str = os.getenv("SENTINEL_STATISTICAL_URL", "https://services.sentinel-hub.com/api/v1/statistics")
+    SENTINEL_PROCESS_URL: str = os.getenv("SENTINEL_PROCESS_URL", "https://services.sentinel-hub.com/api/v1/process")
 
 settings = Settings()
+

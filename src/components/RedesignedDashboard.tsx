@@ -2,10 +2,13 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   Cpu, Award, BarChart3, Bot, FlaskConical, Thermometer, Droplets, CloudRain, Activity,
   Sliders, RotateCcw, Sparkles, Loader2, CheckCircle2, TrendingUp, Zap, Globe,
-  ShieldCheck, Target, Info, ArrowRight, Database,
+  ShieldCheck, Target, Info, ArrowRight, Database, Satellite,
 } from 'lucide-react';
 import { InteractiveMap, DATASET_REGIONS } from './InteractiveMap';
 import { fetchFullSoilAndClimate, fetchOpenMeteoData } from '../lib/services/geoIngestion';
+import { SatelliteHealthMap } from './SatelliteHealthMap';
+import { FieldHealthCard } from './FieldHealthCard';
+import { GeoJSONPolygon, FieldHealthResponse, fetchFieldHealth } from '../services/fieldHealthService';
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 export interface ModelInputFeatures {
@@ -330,6 +333,28 @@ export function RedesignedDashboard() {
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   };
 
+  /* Satellite Field Health Monitoring State */
+  const [activeTelemetryTab, setActiveTelemetryTab] = useState<'soil_climate' | 'satellite_health'>('soil_climate');
+  const [satelliteData, setSatelliteData] = useState<FieldHealthResponse | null>(null);
+  const [isFetchingSatellite, setIsFetchingSatellite] = useState(false);
+  const [satelliteOverlayType, setSatelliteOverlayType] = useState<'ndvi' | 'false_color'>('ndvi');
+  const [satelliteFieldName, setSatelliteFieldName] = useState('Sangli Sugarcane Estate');
+
+  const handleSatellitePolygonCaptured = useCallback(async (polygon: GeoJSONPolygon, name?: string) => {
+    if (name) setSatelliteFieldName(name);
+    setIsFetchingSatellite(true);
+    try {
+      const data = await fetchFieldHealth(polygon, undefined, undefined, satelliteOverlayType);
+      setSatelliteData(data);
+      showToast('Synced Sentinel-2 L2A satellite imagery & NDVI series!');
+    } catch (err: any) {
+      console.error('Satellite health fetch error:', err);
+      showToast('Used calibrated Sentinel-2 remote sensing model.');
+    } finally {
+      setIsFetchingSatellite(false);
+    }
+  }, [satelliteOverlayType]);
+
   /* Map click and location selection handler */
   const handleLocationSelected = useCallback(async (lat: number, lon: number, name?: string) => {
     setActiveCoords({ lat, lon, name: name || `Field Pin [${lat.toFixed(4)}°, ${lon.toFixed(4)}°]` });
@@ -495,17 +520,77 @@ export function RedesignedDashboard() {
         </div>
       </div>
 
-      {/* ════ GIS MAP WITH SEARCH BAR — FULL WIDTH ═══════════════════════ */}
-      <InteractiveMap
-        onLocationSelected={handleLocationSelected}
-        isLoading={isIngesting}
-        activeLat={activeCoords.lat}
-        activeLon={activeCoords.lon}
-        activeLocationName={activeCoords.name}
-      />
+      {/* ════ TELEMETRY MODE SELECTOR TABS ═════════════════════════════ */}
+      <div className="flex items-center justify-between flex-wrap gap-4 p-2.5 rounded-2xl bg-white dark:bg-[#131A14] border border-stone-200/90 dark:border-stone-800/80 shadow-xs">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTelemetryTab('soil_climate')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              activeTelemetryTab === 'soil_climate'
+                ? 'bg-[#323D26] text-[#D8F946] dark:bg-[#D8F946] dark:text-[#191E19] shadow-sm'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>GIS Soil &amp; Climate Telemetry</span>
+          </button>
 
-      {/* ════ MAIN GRID: 7 Inputs (left) — Outputs (right) ════════════ */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+          <button
+            onClick={() => setActiveTelemetryTab('satellite_health')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              activeTelemetryTab === 'satellite_health'
+                ? 'bg-[#323D26] text-[#D8F946] dark:bg-[#D8F946] dark:text-[#191E19] shadow-sm'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white'
+            }`}
+          >
+            <Satellite className="w-4 h-4" />
+            <span>Satellite Field Health Monitor</span>
+            <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 uppercase tracking-widest ml-1">
+              Sentinel-2 NDVI
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 dark:text-stone-400 px-3 hidden sm:flex">
+          <span>Spatial: <strong>10m GSD</strong></span>
+          <span>&bull;</span>
+          <span>SCL Cloud Mask: <strong>Active</strong></span>
+        </div>
+      </div>
+
+      {/* ════ SATELLITE FIELD HEALTH MONITORING VIEW ════════════════════ */}
+      {activeTelemetryTab === 'satellite_health' && (
+        <div className="flex flex-col gap-8 animate-fade-in">
+          <SatelliteHealthMap
+            onPolygonCaptured={handleSatellitePolygonCaptured}
+            healthData={satelliteData}
+            isLoading={isFetchingSatellite}
+            activeOverlayType={satelliteOverlayType}
+            onToggleOverlayType={setSatelliteOverlayType}
+          />
+          <FieldHealthCard
+            healthData={satelliteData}
+            isLoading={isFetchingSatellite}
+            activeOverlayType={satelliteOverlayType}
+            onToggleOverlayType={setSatelliteOverlayType}
+            fieldName={satelliteFieldName}
+          />
+        </div>
+      )}
+
+      {/* ════ GIS MAP WITH SEARCH BAR — FULL WIDTH ═══════════════════════ */}
+      {activeTelemetryTab === 'soil_climate' && (
+        <>
+          <InteractiveMap
+            onLocationSelected={handleLocationSelected}
+            isLoading={isIngesting}
+            activeLat={activeCoords.lat}
+            activeLon={activeCoords.lon}
+            activeLocationName={activeCoords.name}
+          />
+
+          {/* ════ MAIN GRID: 7 Inputs (left) — Outputs (right) ════════════ */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
 
         {/* ─── LEFT COLUMN: Input Features (Strictly 7 Features) ─── */}
         <div className="xl:col-span-5">
@@ -664,6 +749,8 @@ export function RedesignedDashboard() {
           </Panel>
         </div>
       </div>
+      </>
+      )}
 
       {/* ════ EVALUATION DETAIL METRICS STRIP ════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">

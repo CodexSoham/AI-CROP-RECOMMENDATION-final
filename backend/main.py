@@ -22,6 +22,8 @@ from backend.ml.model_engine import score_crop_suitability
 from backend.ml.shap_explainer import compute_shap_breakdown
 from backend.ml.constraint_engine import apply_farming_constraints
 from backend.ml.predictor import crop_predictor
+from backend.schemas.field_health import FieldHealthRequest, FieldHealthResponse, GeoJSONPolygon
+from backend.services.sentinel_hub_service import sentinel_hub_service
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -256,6 +258,42 @@ async def predict_crops(payload: PredictRequest) -> PredictResponse:
         return PredictResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Inference error: {str(e)}")
+
+@app.post("/api/v1/field_health", response_model=FieldHealthResponse, tags=["Remote Sensing"])
+async def get_field_health(payload: FieldHealthRequest) -> FieldHealthResponse:
+    """
+    Satellite Field Health Ingestion Endpoint (Sentinel-2 L2A / Sentinel Hub Statistical API):
+    1. Ingests GeoJSON Polygon boundary, start_date, and end_date.
+    2. Applies Scene Classification Layer (SCL) cloud-masking.
+    3. Calculates NDVI time-series: (B08 - B04) / (B08 + B04).
+    4. Computes mean_ndvi, min_ndvi, max_ndvi, and std_dev.
+    5. Classifies Vegetation Health:
+       - NDVI < 0.2: Bare Soil / Water
+       - 0.2 <= NDVI < 0.5: Low / Stressed Vegetation
+       - 0.5 <= NDVI < 0.7: Moderate Health
+       - NDVI >= 0.7: Dense / Healthy Crop Canopy
+    6. Generates raster overlay data for False-Color Infrared and NDVI Heatmap.
+    """
+    try:
+        return await sentinel_hub_service.get_field_health(payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Satellite Field Health analysis failed: {str(e)}")
+
+@app.get("/api/v1/field_health/demo_field", response_model=FieldHealthResponse, tags=["Remote Sensing"])
+async def get_demo_field_health() -> FieldHealthResponse:
+    """Convenience endpoint returning a reference agricultural parcel for instantaneous evaluation."""
+    demo_poly = GeoJSONPolygon(
+        type="Polygon",
+        coordinates=[[
+            [74.5802, 16.8510],
+            [74.5848, 16.8510],
+            [74.5848, 16.8552],
+            [74.5802, 16.8552],
+            [74.5802, 16.8510]
+        ]]
+    )
+    req = FieldHealthRequest(geojson=demo_poly)
+    return await sentinel_hub_service.get_field_health(req)
 
 if __name__ == "__main__":
     import uvicorn
