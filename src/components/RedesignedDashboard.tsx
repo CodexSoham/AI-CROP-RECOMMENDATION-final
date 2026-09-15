@@ -355,6 +355,50 @@ export function RedesignedDashboard() {
     }
   }, [satelliteOverlayType]);
 
+  /* ML recommendation inference & cloud database logging */
+  const runPrediction = useCallback(async (f: ModelInputFeatures) => {
+    setIsPredicting(true);
+    try {
+      const res = await fetch('/api/v1/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          N: f.N,
+          P: f.P,
+          K: f.K,
+          ph: f.ph,
+          temperature: f.temperature,
+          humidity: f.humidity,
+          rainfall: f.rainfall,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.top_recommendations?.length) {
+          setTopCrops(data.top_recommendations);
+          setAnimKey(k => k + 1);
+        }
+        if (data.feature_importance) setImportance(data.feature_importance);
+        if (data.supabase_logged) setIsDbSynced(true);
+
+        const t = data.top_recommendations?.[0];
+        const s = data.top_recommendations?.[1];
+        if (t) {
+          setAdvisory(
+            `${cap(t.crop)} is projected as the top cultivar (${t.suitability_score.toFixed(1)}% affinity score) — soil chemistry (N=${f.N} ppm, pH=${f.ph}) and microclimate (${f.temperature}°C, ${f.rainfall} mm rainfall) create an optimal growth envelope for this crop. ` +
+            `Ensure balanced N-P-K basal fertilization during initial sowing and monitor relative humidity (${f.humidity}%) to maintain canopy health. ` +
+            (s ? `If seasonal rainfall fluctuates, ${cap(s.crop)} serves as an effective secondary rotation offering stable yield protection.` : '')
+          );
+        }
+      }
+    } catch {
+      // Graceful fallback
+    } finally {
+      setIsPredicting(false);
+    }
+  }, []);
+
   /* Map click and location selection handler */
   const handleLocationSelected = useCallback(async (lat: number, lon: number, name?: string) => {
     setActiveCoords({ lat, lon, name: name || `Field Pin [${lat.toFixed(4)}°, ${lon.toFixed(4)}°]` });
@@ -412,55 +456,26 @@ export function RedesignedDashboard() {
       setSourceNotice(`Satellite Soil Survey (${soil.soilTexture}) · Live Microclimate (${climate.temperature}°C, ${climate.humidity}% RH)`);
       runPrediction(updated);
     } catch {
+      // Build a geo-aware regional fallback so recommendations still update
+      const isSouthPeninsula = lat < 20.0 && lon > 73.0 && lon < 82.0;
+      const isNorthIndia = lat > 25.0 && lon > 70.0 && lon < 90.0;
+      const fallback: ModelInputFeatures = {
+        N: isSouthPeninsula ? 80 : isNorthIndia ? 85 : 75,
+        P: isSouthPeninsula ? 48 : isNorthIndia ? 50 : 45,
+        K: isSouthPeninsula ? 42 : isNorthIndia ? 40 : 38,
+        ph: isSouthPeninsula ? 6.8 : isNorthIndia ? 6.5 : 6.6,
+        temperature: isSouthPeninsula ? 28.0 : isNorthIndia ? 24.0 : 26.0,
+        humidity: isSouthPeninsula ? 72 : isNorthIndia ? 60 : 68,
+        rainfall: isSouthPeninsula ? 185 : isNorthIndia ? 90 : 140,
+      };
+      setFeatures(fallback);
+      setSourceNotice(`Regional Agroclimatic Baseline · [${lat.toFixed(4)}°, ${lon.toFixed(4)}°] (Fallback)`);
       showToast('Engaging regional soil knowledgebase fallback.');
+      runPrediction(fallback);
     } finally {
       setIsIngesting(false);
     }
-  }, []);
-
-  /* ML recommendation inference & cloud database logging */
-  const runPrediction = async (f: ModelInputFeatures) => {
-    setIsPredicting(true);
-    try {
-      const res = await fetch('/api/v1/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          N: f.N,
-          P: f.P,
-          K: f.K,
-          ph: f.ph,
-          temperature: f.temperature,
-          humidity: f.humidity,
-          rainfall: f.rainfall,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.top_recommendations?.length) {
-          setTopCrops(data.top_recommendations);
-          setAnimKey(k => k + 1);
-        }
-        if (data.feature_importance) setImportance(data.feature_importance);
-        if (data.supabase_logged) setIsDbSynced(true);
-
-        const t = data.top_recommendations?.[0];
-        const s = data.top_recommendations?.[1];
-        if (t) {
-          setAdvisory(
-            `${cap(t.crop)} is projected as the top cultivar (${t.suitability_score.toFixed(1)}% affinity score) — soil chemistry (N=${f.N} ppm, pH=${f.ph}) and microclimate (${f.temperature}°C, ${f.rainfall} mm rainfall) create an optimal growth envelope for this crop. ` +
-            `Ensure balanced N-P-K basal fertilization during initial sowing and monitor relative humidity (${f.humidity}%) to maintain canopy health. ` +
-            (s ? `If seasonal rainfall fluctuates, ${cap(s.crop)} serves as an effective secondary rotation offering stable yield protection.` : '')
-          );
-        }
-      }
-    } catch {
-      // Graceful fallback
-    } finally {
-      setIsPredicting(false);
-    }
-  };
+  }, [runPrediction]);
 
   const handleReset = () => {
     setFeatures(DEFAULT_FEATURES);
