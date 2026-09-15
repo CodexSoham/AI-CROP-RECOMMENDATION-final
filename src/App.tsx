@@ -45,8 +45,18 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Active Section Navigation State: 'landing' | 'map' | 'analysis' | 'ending' | 'studio'
-  const [currentSection, setCurrentSection] = useState<CropilySection>('studio');
+  // Active Section Navigation State: 'landing' | 'ending' | 'studio'
+  // Defaults to 'landing' so initial visits land on the landing page
+  const [currentSection, setCurrentSection] = useState<CropilySection>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      if (hash === '#studio' || params.get('view') === 'studio') {
+        return 'studio';
+      }
+    }
+    return 'landing';
+  });
 
   // Section Refs for smooth scrolling
   const landingRef = useRef<HTMLDivElement>(null);
