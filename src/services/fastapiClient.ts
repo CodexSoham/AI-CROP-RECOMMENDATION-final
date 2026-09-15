@@ -29,7 +29,7 @@ export interface RecommendResponse {
 export class FastAPIClient {
   private serviceUrl: string;
 
-  constructor(serviceUrl: string = 'http://localhost:8000') {
+  constructor(serviceUrl: string = import.meta.env.DEV ? 'http://localhost:8000' : '') {
     this.serviceUrl = serviceUrl;
   }
 

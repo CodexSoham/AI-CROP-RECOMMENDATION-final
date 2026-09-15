@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { InteractiveMap, DATASET_REGIONS } from './InteractiveMap';
 import { fetchFullSoilAndClimate, fetchOpenMeteoData } from '../lib/services/geoIngestion';
+import { buildAdvisoryFromPrediction, computeCropPrediction } from '../lib/cropPredictor';
 import { SatelliteHealthMap } from './SatelliteHealthMap';
 import { FieldHealthCard } from './FieldHealthCard';
 import { GeoJSONPolygon, FieldHealthResponse, fetchFieldHealth } from '../services/fieldHealthService';
@@ -356,6 +357,19 @@ export function RedesignedDashboard() {
   }, [satelliteOverlayType]);
 
   /* ML recommendation inference & cloud database logging */
+  const applyPrediction = useCallback((f: ModelInputFeatures, data: { top_recommendations?: RecommendedCrop[]; feature_importance?: Record<string, number>; supabase_logged?: boolean }) => {
+    if (data.top_recommendations?.length) {
+      setTopCrops(data.top_recommendations);
+      setAnimKey(k => k + 1);
+      setAdvisory(buildAdvisoryFromPrediction(f, {
+        top_recommendations: data.top_recommendations,
+        feature_importance: data.feature_importance || {},
+      }));
+    }
+    if (data.feature_importance) setImportance(data.feature_importance);
+    if (data.supabase_logged) setIsDbSynced(true);
+  }, []);
+
   const runPrediction = useCallback(async (f: ModelInputFeatures) => {
     setIsPredicting(true);
     console.log('[AdaptiveCrop] runPrediction →', f);
@@ -372,6 +386,7 @@ export function RedesignedDashboard() {
           humidity: f.humidity,
           rainfall: f.rainfall,
         }),
+        signal: AbortSignal.timeout(8000),
       });
 
       console.log('[AdaptiveCrop] predict status:', res.status);
@@ -379,30 +394,19 @@ export function RedesignedDashboard() {
         const data = await res.json();
         console.log('[AdaptiveCrop] top crops:', data.top_recommendations?.map((c: any) => c.crop));
         if (data.top_recommendations?.length) {
-          setTopCrops(data.top_recommendations);
-          setAnimKey(k => k + 1);
+          applyPrediction(f, data);
+          return;
         }
-        if (data.feature_importance) setImportance(data.feature_importance);
-        if (data.supabase_logged) setIsDbSynced(true);
-
-        const t = data.top_recommendations?.[0];
-        const s = data.top_recommendations?.[1];
-        if (t) {
-          setAdvisory(
-            `${cap(t.crop)} is projected as the top cultivar (${t.suitability_score.toFixed(1)}% affinity score) — soil chemistry (N=${f.N} ppm, pH=${f.ph}) and microclimate (${f.temperature}°C, ${f.rainfall} mm rainfall) create an optimal growth envelope for this crop. ` +
-            `Ensure balanced N-P-K basal fertilization during initial sowing and monitor relative humidity (${f.humidity}%) to maintain canopy health. ` +
-            (s ? `If seasonal rainfall fluctuates, ${cap(s.crop)} serves as an effective secondary rotation offering stable yield protection.` : '')
-          );
-        }
-      } else {
-        console.error('[AdaptiveCrop] predict API non-OK:', res.status);
       }
+      console.warn('[AdaptiveCrop] predict API unavailable, using in-browser engine');
+      applyPrediction(f, computeCropPrediction(f));
     } catch (err) {
-      console.error('[AdaptiveCrop] runPrediction error:', err);
+      console.warn('[AdaptiveCrop] runPrediction fallback:', err);
+      applyPrediction(f, computeCropPrediction(f));
     } finally {
       setIsPredicting(false);
     }
-  }, []);
+  }, [applyPrediction]);
 
   /* Map click and location selection handler — plain async (no useCallback) to avoid stale closure */
   const handleLocationSelected = async (lat: number, lon: number, name?: string) => {

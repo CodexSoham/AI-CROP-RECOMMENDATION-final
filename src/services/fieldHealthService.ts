@@ -154,8 +154,9 @@ export async function fetchFieldHealth(
     overlay_type: overlayType,
   };
 
-  // Try direct FastAPI port 8000 first, then fall back to Express/Vite proxy
-  const endpoints = ['http://localhost:8000/api/v1/field_health', '/api/v1/field_health'];
+  const endpoints = import.meta.env.DEV
+    ? ['http://localhost:8000/api/v1/field_health', '/api/v1/field_health']
+    : ['/api/v1/field_health'];
 
   for (const endpoint of endpoints) {
     try {
@@ -163,15 +164,20 @@ export async function fetchFieldHealth(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        if (data?.success && data?.current_health) {
+          return data;
+        }
       }
     } catch {
       // Continue to next endpoint
     }
   }
 
-  throw new Error('Satellite Remote Sensing pipeline temporarily unreachable.');
+  const { simulateFieldHealth } = await import('../lib/fieldHealthFallback');
+  return simulateFieldHealth(geojson);
 }

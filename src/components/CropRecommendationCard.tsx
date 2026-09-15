@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Info,
 } from 'lucide-react';
+import { computeCropPrediction } from '../lib/cropPredictor';
 
 interface RecommendedCrop {
   rank: number;
@@ -89,6 +90,17 @@ export function CropRecommendationCard() {
       }
     } catch (err: any) {
       console.warn('Prediction API error, applying local calibrated prediction:', err);
+      const local = computeCropPrediction({
+        N: Number(n),
+        P: Number(p),
+        K: Number(k),
+        ph: Number(ph),
+        temperature: Number(temperature),
+        humidity: Number(humidity),
+        rainfall: Number(rainfall),
+      });
+      setRecommendations(local.top_recommendations);
+      setFeatureImportance(local.feature_importance);
       setErrorMsg('Connected to local inference fallback engine.');
     } finally {
       setIsLoading(false);
