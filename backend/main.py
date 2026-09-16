@@ -18,10 +18,10 @@ from backend.services.soilgrids_service import soilgrids_service
 from backend.services.geo_ingestion import geo_ingestion_service
 from backend.services.gemini_advisory import gemini_advisory_service
 from backend.services.supabase_service import supabase_service
-from backend.ml.model_engine import score_crop_suitability
-from backend.ml.shap_explainer import compute_shap_breakdown
-from backend.ml.constraint_engine import apply_farming_constraints
-from backend.ml.predictor import crop_predictor
+from ml.model_engine import score_crop_suitability
+from ml.shap_explainer import compute_shap_breakdown
+from ml.constraint_engine import apply_farming_constraints
+from ml.predictor import crop_predictor
 from backend.schemas.field_health import FieldHealthRequest, FieldHealthResponse, GeoJSONPolygon
 from backend.services.sentinel_hub_service import sentinel_hub_service
 

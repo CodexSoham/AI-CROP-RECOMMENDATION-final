@@ -15,9 +15,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from backend.services.open_meteo_service import open_meteo_service
 from backend.services.soilgrids_service import soilgrids_service
-from backend.ml.model_engine import score_crop_suitability
-from backend.ml.constraint_engine import apply_farming_constraints
-from backend.ml.shap_explainer import compute_shap_breakdown
+from ml.model_engine import score_crop_suitability
+from ml.constraint_engine import apply_farming_constraints
+from ml.shap_explainer import compute_shap_breakdown
 
 TOOLS_MANIFEST = [
     {
