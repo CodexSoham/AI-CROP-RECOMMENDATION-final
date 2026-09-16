@@ -1,5 +1,5 @@
 [README.md](https://github.com/user-attachments/files/32233765/README.md)
-# 🌾 AdaptiveCrop AI (AgroXAI)
+# 🌾 AdaptiveCrop AI (KshetraAI)
 ### Explainable, Constraint-Aware Precision Crop Recommendation System for Agriculture 4.0
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel)](https://ai-crop-recommendation-kappa.vercel.app/)
@@ -14,7 +14,7 @@
 
 ## 📌 Overview
 
-**AdaptiveCrop AI (AgroXAI)** is an end-to-end, data-driven agricultural decision-support platform built for Agriculture 4.0. Traditional crop recommendation systems act as "black boxes" that assume ideal farming conditions and predict a single static crop label without explaining the underlying biological rationale or taking real-world resource scarcity into account.
+**AdaptiveCrop AI (KshetraAI)** is an end-to-end, data-driven agricultural decision-support platform built for Agriculture 4.0. Traditional crop recommendation systems act as "black boxes" that assume ideal farming conditions and predict a single static crop label without explaining the underlying biological rationale or taking real-world resource scarcity into account.
 
 AdaptiveCrop AI solves these fundamental limitations by integrating:
 - **Multiclass Probabilistic Predictions**: Evaluates 7 core soil & climatic parameters to output Top-3 recommended crops (Primary 🥇, Secondary 🥈, Tertiary 🥉) with calibrated suitability scores.
